@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { CreateButton } from "@/components/refine-ui/buttons/create";
 import { DataTable } from "@/components/refine-ui/data-table/data-table";
 import { Breadcrumb } from "@/components/refine-ui/layout/breadcrumb";
@@ -12,17 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DEPARTPEMENT_OPTIONS } from "@/constants";
+import { DEPARTMENT_OPTIONS } from "@/constants";
 import { Subject } from "@/types";
 import { useTable } from "@refinedev/react-table";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 const SubjectsList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const searchTimeoutRef = useRef<number | null>(null);
 
   const departmentFilter =
     selectedDepartment === "all"
@@ -65,11 +65,14 @@ const SubjectsList = () => {
         },
         {
           id: "department",
-          accessorKey: "department",
+          accessorFn: (row) =>
+            typeof row.department === "string"
+              ? row.department
+              : row.department?.name ?? "",
           size: 150,
           header: () => <p className="column-title">Department</p>,
           cell: ({ getValue }) => (
-            <Badge variant="secondary">{getValue<string>()}</Badge>
+            <Badge variant="secondary">{getValue<string>() || "N/A"}</Badge>
           ),
           filterFn: "includesString",
         },
@@ -121,7 +124,18 @@ const SubjectsList = () => {
               type="text"
               placeholder="Search by name.."
               className="pl-10 w-full"
-              value={searchQuery}
+              defaultValue=""
+              onChange={(event) => {
+                if (searchTimeoutRef.current) {
+                  window.clearTimeout(searchTimeoutRef.current);
+                }
+
+                const nextValue = event.target.value;
+
+                searchTimeoutRef.current = window.setTimeout(() => {
+                  setSearchQuery(nextValue.trim());
+                }, 300);
+              }}
             />
           </div>
           <div className="flex gap-2 w-full">
@@ -133,7 +147,7 @@ const SubjectsList = () => {
                 <SelectValue placeholder="Filter by department" />
               </SelectTrigger>
               <SelectContent>
-                {DEPARTPEMENT_OPTIONS.map((dept) => (
+                {DEPARTMENT_OPTIONS.map((dept) => (
                   <SelectItem key={dept.value} value={dept.value}>
                     {dept.label}
                   </SelectItem>
