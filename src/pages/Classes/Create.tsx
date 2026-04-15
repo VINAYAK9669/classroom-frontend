@@ -110,6 +110,7 @@ const Create = () => {
   });
 
   const { onFinish } = form.refineCore;
+
   const {
     handleSubmit,
     control,
@@ -117,29 +118,7 @@ const Create = () => {
   } = form;
 
   const onSubmit = async (values: CreateClassFormValues) => {
-    const selectedSubject = subjects.find(
-      (item) => item.id === values.subjectId,
-    );
-    const selectedTeacher = teachers.find(
-      (item) => item.id === values.teacherId,
-    );
-    const normalizedBannerUrl = values.bannerUrl?.trim();
-    const finalBannerUrl =
-      normalizedBannerUrl && normalizedBannerUrl.length > 0
-        ? normalizedBannerUrl
-        : "https://images.unsplash.com/photo-1523240795612-9a054b0db644";
-
-    await (onFinish as (payload: BaseRecord) => Promise<unknown>)({
-      ...values,
-      bannerUrl: finalBannerUrl,
-      name: `${selectedSubject?.name ?? "General"} - ${
-        selectedTeacher?.name ?? "Class"
-      }`,
-      bannerCldPubId:
-        bannerAsset?.publicId ?? getBannerPublicId(finalBannerUrl),
-      inviteCode: undefined,
-      schedules: undefined,
-    });
+    console.log("Form values before submission:", values);
   };
 
   return (

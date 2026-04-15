@@ -1,6 +1,30 @@
 import { BACKEND_BASE_URL } from "@/constants";
 import { ListResponse } from "@/types";
+import { HttpError } from "@refinedev/core";
 import { createDataProvider, CreateDataProviderOptions } from "@refinedev/rest";
+
+if (!BACKEND_BASE_URL) {
+  throw new Error("BACKEND_BASE_URL is not defined");
+}
+
+const buildHttpError = async (response: Response): Promise<HttpError> => {
+  let message = "Request failed";
+  try {
+    const payload = (await response.json()) as { message?: string };
+
+    if (payload.message) {
+      message = payload.message;
+    }
+  } catch (e) {
+    // Ignore Error
+    console.error("Failed to parse error response:", e);
+  }
+
+  return {
+    message,
+    statusCode: response.status,
+  };
+};
 
 const options: CreateDataProviderOptions = {
   getList: {
@@ -26,6 +50,10 @@ const options: CreateDataProviderOptions = {
     },
 
     mapResponse: async (response) => {
+      if (!response.ok) {
+        throw await buildHttpError(response);
+      }
+
       const payload: ListResponse = await response.json();
 
       return payload.data ?? [];
