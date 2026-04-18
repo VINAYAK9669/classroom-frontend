@@ -23,17 +23,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { subjects, teachers } from "@/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type BaseRecord, type HttpError } from "@refinedev/core";
+import { useList, type BaseRecord, type HttpError } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { type Resolver } from "react-hook-form";
 import * as z from "zod";
 import UploadWidget from "@/components/UploadWidget";
-import type { UploadWidgetValue } from "@/types";
+import type { Subject, UploadWidgetValue, User } from "@/types";
 import { useState } from "react";
 
 const createClassFormSchema = z.object({
+  name: z
+    .string({ required_error: "Class name is required" })
+    .trim()
+    .min(2, "Class name must be at least 2 characters")
+    .max(50, "Class name must be at most 50 characters"),
   bannerUrl: z
     .string()
     .trim()
@@ -41,6 +45,7 @@ const createClassFormSchema = z.object({
     .refine((value) => !value || /^https?:\/\/\S+$/i.test(value), {
       message: "Banner image must be a valid URL",
     }),
+  bannerCldPubId: z.string().optional(),
   subjectId: z.coerce
     .number({
       required_error: "Subject is required",
@@ -72,24 +77,31 @@ const createClassFormSchema = z.object({
 
 type CreateClassFormValues = z.infer<typeof createClassFormSchema>;
 
-const getBannerPublicId = (url: string) => {
-  try {
-    const path = new URL(url).pathname.replace(/^\/+/, "");
-    const normalized = (path || "classes/banner-image")
-      .replace(/[^A-Za-z0-9/_-]/g, "-")
-      .replace(/-+/g, "-")
-      .slice(0, 255);
-
-    return normalized.length >= 3 ? normalized : "classes/banner-image";
-  } catch {
-    return "classes/banner-image";
-  }
-};
-
 const Create = () => {
   const [bannerAsset, setBannerAsset] = useState<UploadWidgetValue | null>(
     null,
   );
+
+  const { query: subjectsQuery } = useList<Subject>({
+    resource: "subjects",
+    pagination: {
+      pageSize: 100,
+    },
+  });
+
+  const { query: teachersQuery } = useList<User>({
+    resource: "users",
+    filters: [{ field: "role", operator: "eq", value: "teacher" }],
+    pagination: {
+      pageSize: 100,
+    },
+  });
+
+  const subjects = subjectsQuery?.data?.data || [];
+  const subjectsLoading = subjectsQuery.isLoading;
+
+  const teachers = teachersQuery?.data?.data || [];
+  const teachersLoading = teachersQuery.isLoading;
 
   const form = useForm<BaseRecord, HttpError, CreateClassFormValues>({
     resolver: zodResolver(
@@ -100,25 +112,32 @@ const Create = () => {
       action: "create",
     },
     defaultValues: {
+      name: "",
       description: "",
       subjectId: undefined,
       teacherId: "",
       capacity: 30,
       status: "active",
       bannerUrl: "",
+      bannerCldPubId: "",
     },
   });
 
-  const { onFinish } = form.refineCore;
-
   const {
+    refineCore: { onFinish },
     handleSubmit,
     control,
+    setValue,
     formState: { isSubmitting },
   } = form;
 
   const onSubmit = async (values: CreateClassFormValues) => {
     console.log("Form values before submission:", values);
+    try {
+      await onFinish(values);
+    } catch (error) {
+      console.error("Error creating class:", error);
+    }
   };
 
   return (
@@ -141,6 +160,25 @@ const Create = () => {
               <CardContent className="mt-6 space-y-5">
                 <FormField
                   control={control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-foreground data-[error=true]:text-foreground">
+                        Class Name<span className="required-mark">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g. Advanced Mathematics Section A"
+                        />
+                      </FormControl>
+                      <FormMessage className="min-h-5 text-rose-600 dark:text-rose-400" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
                   name="bannerUrl"
                   render={({ field }) => (
                     <FormItem>
@@ -161,11 +199,13 @@ const Create = () => {
                             if (file) {
                               setBannerAsset(file);
                               field.onChange(file.url);
+                              setValue("bannerCldPubId", file.publicId);
                               return;
                             }
 
                             setBannerAsset(null);
                             field.onChange("");
+                            setValue("bannerCldPubId", "");
                           }}
                         />
                       </FormControl>
@@ -192,6 +232,7 @@ const Create = () => {
                           onValueChange={(value) =>
                             field.onChange(Number(value))
                           }
+                          disabled={subjectsLoading}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
@@ -225,6 +266,7 @@ const Create = () => {
                         <Select
                           value={field.value || undefined}
                           onValueChange={field.onChange}
+                          disabled={teachersLoading}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
